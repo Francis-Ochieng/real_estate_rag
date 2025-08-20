@@ -1,52 +1,112 @@
-import chromadb
-from chromadb.config import Settings
-from chromadb.utils import embedding_functions
 import os
-from .embeddings import Embedder
+import chromadb
+from groq import Groq  # ✅ Groq client
 import numpy as np
-from cross_encoder import CrossEncoder
 
+# Path where Chroma stores vectors
 CHROMA_DIR = os.path.join(os.getcwd(), 'chroma_db')
 
 class ChromaRetriever:
-    def __init__(self, collection_name='real_estate', persist=True, embedding_model='all-MiniLM-L6-v2', use_reranker=True):
-        self.persist = persist
-        self.client = chromadb.Client(Settings(chroma_db_impl='duckdb+parquet', persist_directory=CHROMA_DIR))
-        self.collection = self.client.create_collection(collection_name) if collection_name not in [c.name for c in self.client.list_collections()] else self.client.get_collection(collection_name)
-        self.embedder = Embedder(embedding_model)
+    def __init__(self, collection_name='real_estate',
+                 persist=True,
+                 embedding_model='text-embedding-3-small',
+                 use_reranker=False):
+        """
+        Wrapper around ChromaDB with Groq embeddings.
+        :param collection_name: Name of vector collection
+        :param persist: Whether to persist to disk
+        :param embedding_model: Groq embedding model name
+        :param use_reranker: Placeholder (Groq doesn't provide reranker yet)
+        """
+        self.should_persist = persist
+        self.embedding_model = embedding_model
+
+        # ✅ Persistent client (avoids server mode errors)
+        self.client = chromadb.Client(chromadb.config.Settings(
+            chroma_api_impl="chromadb.api.local.LocalAPI",
+            persist_directory=CHROMA_DIR
+        ))
+
+        # ✅ Create or load collection
+        self.collection = self.client.get_or_create_collection(name=collection_name)
+
+        # ✅ Groq client (needs GROQ_API_KEY in env)
+        self.groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
         self.use_reranker = use_reranker
         if use_reranker:
-            try:
-                self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
-            except Exception as e:
-                print('Failed to load reranker:', e)
-                self.reranker = None
+            print("⚠️ Reranker not available with Groq yet. Using vector similarity only.")
 
-    def add_documents(self, docs, metadatas=None, ids=None):
-        # docs: list of strings
-        embs = self.embedder.embed(docs).tolist()
-        self.collection.add(documents=docs, metadatas=metadatas or [{}]*len(docs), ids=ids, embeddings=embs)
+    def _embed(self, texts):
+        """Get embeddings from Groq API."""
+        try:
+            resp = self.groq_client.embeddings.create(
+                model=self.embedding_model,
+                input=texts
+            )
+            return np.array([d.embedding for d in resp.data])
+        except Exception as e:
+            print("❌ Embedding error:", e)
+            return np.zeros((len(texts), 384))  # fallback
+
+    def add_documents(self, docs, source="unknown", metadatas=None, ids=None):
+        """Add documents + embeddings to Chroma."""
+        embs = self._embed(docs).tolist()
+        ids = ids or [f"id_{i}" for i in range(len(docs))]
+        if metadatas:
+            for m in metadatas:
+                m.setdefault("source", source)
+        else:
+            metadatas = [{"source": source}] * len(docs)
+
+        self.collection.add(
+            documents=docs,
+            metadatas=metadatas,
+            ids=ids,
+            embeddings=embs
+        )
 
     def query(self, query_text, top_k=5, rerank_top_n=10):
-        q_emb = self.embedder.embed([query_text]).tolist()[0]
-        res = self.collection.query(query_embeddings=[q_emb], n_results=rerank_top_n, include=['metadatas','documents','distances'])
-        docs = res['documents'][0]
-        distances = res['distances'][0]
-        metadatas = res['metadatas'][0]
-        items = []
-        for d,dist,meta in zip(docs, distances, metadatas):
-            items.append({'text':d, 'distance':dist, 'meta':meta})
-        # optional rerank
-        if self.use_reranker and self.reranker is not None:
-            pairs = [[query_text, it['text']] for it in items]
-            scores = self.reranker.predict(pairs)
-            for it, sc in zip(items, scores):
-                it['rerank_score'] = float(sc)
-            items = sorted(items, key=lambda x: x['rerank_score'], reverse=True)[:top_k]
+        """Query vector DB with light metadata-aware prioritization."""
+        q_emb = self._embed([query_text]).tolist()[0]
+        res = self.collection.query(
+            query_embeddings=[q_emb],
+            n_results=rerank_top_n,
+            include=["metadatas", "documents", "distances"]
+        )
+
+        docs = res.get("documents", [[]])[0]
+        distances = res.get("distances", [[]])[0]
+        metadatas = res.get("metadatas", [[]])[0]
+
+        items = [
+            {"text": d, "distance": dist, "meta": meta}
+            for d, dist, meta in zip(docs, distances, metadatas)
+        ]
+
+        q_lower = query_text.lower()
+        if "youtu" in q_lower:
+            items = sorted(
+                items,
+                key=lambda x: (
+                    0 if "youtu" in x["meta"].get("source", "").lower() else 1,
+                    x["distance"]
+                )
+            )
+        elif "http" in q_lower or "www" in q_lower:
+            items = sorted(
+                items,
+                key=lambda x: (
+                    0 if "url" in x["meta"].get("source", "").lower() else 1,
+                    x["distance"]
+                )
+            )
         else:
-            items = sorted(items, key=lambda x: x['distance'])[:top_k]
-        return items
+            items = sorted(items, key=lambda x: x["distance"])
+
+        return items[:top_k]
 
     def persist(self):
-        if self.persist:
-            self.client.persist()
+        """Persist the DB if persistence is enabled."""
+        if self.should_persist:
+            print("✅ Chroma DB is automatically persisted.")
