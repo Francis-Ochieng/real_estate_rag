@@ -2,21 +2,22 @@
 
 ## What this is
 
-A **Retrieval-Augmented Generation (RAG)** Streamlit app tailored for real estate workflows.
-It ingests PDFs, DOCX, TXT, CSV, webpages (scraping), and YouTube transcripts, chunks text, creates embeddings, stores them locally in Chroma, and lets you ask questions over your documents.
+A Retrieval-Augmented Generation (RAG) Streamlit app tailored for real estate workflows. It ingests PDFs, DOCX, TXT, CSV, webpages (scraping), and YouTube transcripts, chunks text, creates embeddings, stores them locally in Chroma, and lets you ask questions over your documents.
+
+**Note:** This version uses **Groq** for generation instead of OpenAI.
 
 ---
 
 ## Features
 
-* Upload multiple files (PDF, TXT, DOCX, CSV)
-* Add website URLs and YouTube links (one per line)
-* Character-based chunking with adjustable size & overlap
-* Embeddings with **sentence-transformers** (by default)
-* Vector store: **Chroma** (local)
-* Optional reranker (**CrossEncoder**)
-* Streamlit UI: chat history, clear chats, preview documents, download transcript
-* Shows retrieval and reranking steps and scores after ingestion
+* Upload multiple files (PDF, TXT, DOCX, CSV).
+* Add website URLs and YouTube links (one per line).
+* Character-based chunking with adjustable size & overlap.
+* Embeddings with sentence-transformers (by default).
+* Vector store: Chroma (local).
+* Optional reranker (CrossEncoder).
+* Streamlit UI: chat history, clear chats, preview documents, download transcript.
+* Shows retrieval and reranking steps and scores after ingestion.
 
 ---
 
@@ -28,7 +29,7 @@ real_estate_rag/
 ├─ ingestion.py          # Loaders for files, URLs, YouTube
 ├─ embeddings.py         # Embedding model wrapper
 ├─ retriever.py          # Vector store and retrieval + reranker
-├─ utils.py              # Helpers (chunking, text preview)
+├─ utils.py              # helpers (chunking, text preview)
 ├─ requirements.txt
 └─ README.md
 ```
@@ -37,41 +38,31 @@ real_estate_rag/
 
 ## Quick setup (recommended)
 
-1. Create a Python 3.9+ virtual environment:
+Create a Python 3.9+ virtualenv:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate   # or .\.venv\Scripts\activate on Windows
-```
-
-2. Install dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
-3. (Optional) If using **OpenAI** for generation, set your API key:
+(Optional) If using **Groq for generation**, make sure you have the credentials set up as per your Groq account.
 
-```bash
-export OPENAI_API_KEY="sk-..."   # Linux / macOS
-setx OPENAI_API_KEY "sk-..."     # Windows
-```
-
-4. Run the Streamlit app:
+Run the Streamlit app:
 
 ```bash
 streamlit run app.py
 ```
 
-5. Use the sidebar to upload files, paste URLs/YouTube links, configure chunking, then click **Ingest**. After ingestion, you can ask questions in the chat box.
+Use the sidebar to upload files, paste URLs/YouTube links, configure chunking, then click **Ingest**. After ingestion you can ask questions in the chat box.
 
 ---
 
 ## Notes & Limitations
 
-* By default, the app uses `sentence-transformers/all-MiniLM-L6-v2` for embeddings (local/inference). Model weights are downloaded on first run.
-* Generation uses **OpenAI** if `OPENAI_API_KEY` is set. If not, the app will still show retrieval, but generation falls back to a very small local Hugging Face model (not recommended for production).
-* Reranking is optional and requires **CrossEncoder**, which downloads additional weights.
+* By default, the app uses `sentence-transformers/all-MiniLM-L6-v2` for embeddings (local/infer). This downloads model weights on first run.
+* Generation uses **Groq** if configured. If not set, the app will still show retrieval, but generation will fallback to a very small local HF model if available (not recommended for production).
+* Reranking is optional and requires cross-encoder which downloads additional weights.
 
 ---
 
@@ -85,7 +76,6 @@ streamlit run app.py
 
 ## Further improvements
 
-* Add authentication before ingesting private documents
-* Add longer-document summarization and caching of embeddings
-* Deploy to **Streamlit Cloud** or **Render** for a live demo
-
+* Add authentication before ingesting private docs.
+* Add longer-document summarization and caching of embeddings.
+* Deploy to Streamlit Cloud or Render for a live demo.
