@@ -8,5 +8,4 @@ beautifulsoup4>=4.12.2
 requests>=2.31.0
 python-docx>=0.8.11
 pypdf>=3.13.0
-cross-encoder>=0.3.0
-openai>=0.27.0
+groq>=0.9.0
