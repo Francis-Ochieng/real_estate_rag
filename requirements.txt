@@ -1,0 +1,12 @@
+streamlit>=1.20
+langchain>=0.0.300
+chromadb>=0.3.28
+sentence-transformers>=2.2.2
+transformers>=4.30.0
+youtube-transcript-api>=0.6.0
+beautifulsoup4>=4.12.2
+requests>=2.31.0
+python-docx>=0.8.11
+pypdf>=3.13.0
+cross-encoder>=0.3.0
+openai>=0.27.0
