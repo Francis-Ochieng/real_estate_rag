@@ -1,27 +1,31 @@
+# embeddings.py
+
 import os
 import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
-# Load .env so GROQ_API_KEY is available
+# Load environment variables
 load_dotenv()
 
-class Embedder:
-    def __init__(self, model_name="nomic-embed-text"):
-        """
-        Default model: nomic-embed-text (fast embeddings via Groq).
-        """
+
+class GroqEmbeddings:
+    """
+    LangChain-compatible wrapper for Groq embeddings API.
+    Implements .embed_documents() and .embed_query().
+    Default model: nomic-embed-text
+    """
+
+    def __init__(self, model_name: str = "nomic-embed-text"):
         self.model_name = model_name
         groq_api_key = os.getenv("GROQ_API_KEY")
         if not groq_api_key:
-            raise ValueError("GROQ_API_KEY is not set in environment variables or .env file.")
+            raise ValueError("❌ GROQ_API_KEY is not set in environment variables or .env file.")
         self.client = Groq(api_key=groq_api_key)
 
-    def embed(self, texts):
-        """
-        Create embeddings for a list of texts using Groq embeddings API.
-        Returns a numpy array of shape (len(texts), embedding_dim).
-        """
+    def _embed(self, texts):
+        """Internal helper to call Groq API."""
         if isinstance(texts, str):
             texts = [texts]
 
@@ -29,11 +33,34 @@ class Embedder:
             model=self.model_name,
             input=texts
         )
-
         embeddings = [item.embedding for item in response.data]
         embs = np.array(embeddings, dtype=np.float32)
 
-        # ensure 2D
+        # Ensure 2D
         if embs.ndim == 1:
             embs = np.expand_dims(embs, 0)
-        return embs
+        return embs.tolist()
+
+    def embed_documents(self, texts):
+        """Embed multiple documents (list of strings)."""
+        return self._embed(texts)
+
+    def embed_query(self, text):
+        """Embed a single query string."""
+        return self._embed([text])[0]
+
+
+def get_embedding_function(provider: str = "huggingface"):
+    """
+    Factory to get an embedding function compatible with FAISS & LangChain.
+    - "huggingface": Uses all-MiniLM-L6-v2 (local SentenceTransformer)
+    - "groq": Uses Groq embeddings API (nomic-embed-text)
+    """
+    if provider == "groq":
+        return GroqEmbeddings(model_name="nomic-embed-text")
+
+    elif provider == "huggingface":
+        return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    else:
+        raise ValueError(f"❌ Unknown embedding provider: {provider}")

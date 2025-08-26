@@ -9,8 +9,8 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from pypdf import PdfReader
 from dotenv import load_dotenv   # ✅ load .env
 
-from utils import clean_text      # ✅ absolute import
-from retriever import ChromaRetriever  # ✅ bring in retriever
+from utils import clean_text
+from retriever import FAISSRetriever  # ✅ now using FAISS retriever
 
 
 # -------------------
@@ -145,19 +145,14 @@ def load_any(source: str) -> str:
 
 def ingest(sources: list, collection_name: str = "real_estate"):
     """
-    Ingest a list of sources into Chroma (DuckDB+Parquet backend).
-    - Wipes existing collection before adding
+    Ingest a list of sources into FAISS.
+    - Wipes existing FAISS index before adding
     - Supports PDFs, DOCX, TXT, CSV, URLs, YouTube
     """
-    retriever = ChromaRetriever(collection_name=collection_name)
+    retriever = FAISSRetriever(collection_name=collection_name)
 
-    # ❌ Delete existing collection (to avoid duplicates)
-    try:
-        retriever.client.delete_collection(name=collection_name)
-    except Exception:
-        pass  # first run, no collection yet
-
-    retriever.collection = retriever.client.get_or_create_collection(name=collection_name)
+    # ❌ Reset FAISS index
+    retriever.reset_collection()
 
     for i, src in enumerate(sources):
         print(f"📥 Loading: {src}")

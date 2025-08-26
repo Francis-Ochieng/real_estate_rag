@@ -1,42 +1,39 @@
 # retriever.py
 
 import os
-import chromadb
-import numpy as np
+import shutil
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer  # ✅ HuggingFace embeddings
 from groq import Groq  # ✅ Groq client (for LLM completions)
+from langchain_community.vectorstores import FAISS
+from langchain.docstore.document import Document
+from embeddings import get_embedding_function  # ✅ Import our embedding factory
 
 # ✅ Load environment variables
 load_dotenv()
 
-# Path where Chroma stores vectors
-CHROMA_DIR = os.path.join(os.getcwd(), 'chroma_db')
+# Path where FAISS stores vectors
+FAISS_DIR = os.path.join(os.getcwd(), "faiss_index")
 
 
-class ChromaRetriever:
-    def __init__(self, collection_name='real_estate',
-                 persist=True,
-                 embedding_model="all-MiniLM-L6-v2",
+class FAISSRetriever:
+    def __init__(self,
+                 collection_name="real_estate",
+                 embedding_provider="huggingface",  # "huggingface" or "groq"
+                 embedding_model="sentence-transformers/all-MiniLM-L6-v2",
                  use_reranker=False):
         """
-        Wrapper around ChromaDB with HuggingFace embeddings + Groq LLM.
+        Wrapper around FAISS with pluggable embeddings (HuggingFace or Groq) + Groq LLM.
         """
-        self.should_persist = persist
         self.collection_name = collection_name
+        self.index_path = FAISS_DIR
 
-        # ✅ Initialize Chroma client
-        if persist:
-            self.client = chromadb.PersistentClient(path=CHROMA_DIR)
+        # ✅ Get embedding function (HuggingFace or Groq)
+        if embedding_provider == "huggingface":
+            self.embedder = get_embedding_function("huggingface")
+        elif embedding_provider == "groq":
+            self.embedder = get_embedding_function("groq")
         else:
-            self.client = chromadb.EphemeralClient()
-
-        # ✅ Create or load collection
-        self.collection = self.client.get_or_create_collection(name=collection_name)
-
-        # ✅ Local HuggingFace embedding model
-        print(f"🔎 Loading local embedding model: {embedding_model}")
-        self.embedder = SentenceTransformer(embedding_model)
+            raise ValueError(f"❌ Unknown embedding provider: {embedding_provider}")
 
         # ✅ Groq client for answers
         api_key = os.getenv("GROQ_API_KEY")
@@ -48,71 +45,75 @@ class ChromaRetriever:
         if use_reranker:
             print("⚠️ Reranker not available with Groq yet. Using vector similarity only.")
 
-    # ---------------------------
-    # Embeddings
-    # ---------------------------
-    def _embed(self, texts):
-        """Generate embeddings with HuggingFace model."""
-        try:
-            return self.embedder.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
-        except Exception as e:
-            print("❌ Embedding error:", e)
-            return np.zeros((len(texts), 384))  # fallback size for MiniLM
+        # Load FAISS index if exists
+        self.vs = None
+        if os.path.exists(self.index_path):
+            try:
+                self.vs = FAISS.load_local(
+                    self.index_path,
+                    self.embedder,
+                    allow_dangerous_deserialization=True
+                )
+                print(f"✅ Loaded existing FAISS index from {self.index_path}")
+            except Exception:
+                print("⚠️ Failed to load FAISS index, starting fresh.")
+                self.vs = None
 
     # ---------------------------
     # Add docs
     # ---------------------------
     def add_documents(self, docs, source="unknown", metadatas=None, ids=None):
-        """Add documents + embeddings to Chroma."""
+        """Add documents + embeddings to FAISS."""
         if not docs:
             print("⚠️ No documents to add.")
             return
 
-        embs = self._embed(docs).tolist()
-        ids = ids or [f"{source}_{i}" for i in range(len(docs))]
-
-        # Ensure metadata always has `source`
-        if metadatas:
-            for m in metadatas:
-                m.setdefault("source", source)
+        if not self.vs:
+            self.vs = FAISS.from_texts(
+                texts=docs,
+                embedding=self.embedder,
+                metadatas=metadatas
+            )
         else:
-            metadatas = [{"source": source}] * len(docs)
+            new_store = FAISS.from_texts(
+                texts=docs,
+                embedding=self.embedder,
+                metadatas=metadatas
+            )
+            self.vs.merge_from(new_store)
 
-        self.collection.add(
-            documents=docs,
-            metadatas=metadatas,
-            ids=ids,
-            embeddings=embs
-        )
-        print(f"✅ Added {len(docs)} docs from {source} into '{self.collection_name}'.")
+        print(f"✅ Added {len(docs)} docs from {source} into FAISS index.")
 
     # ---------------------------
     # Query
     # ---------------------------
     def query(self, query_text, top_k=5, rerank_top_n=10):
-        """Query vector DB with metadata-aware heuristic."""
-        q_emb = self._embed([query_text]).tolist()[0]
-        res = self.collection.query(
-            query_embeddings=[q_emb],
-            n_results=rerank_top_n,
-            include=["metadatas", "documents", "distances"]
-        )
+        """Query FAISS vector store with metadata-aware heuristic."""
+        if not self.vs:
+            print("⚠️ No FAISS index available.")
+            return []
 
-        docs = res.get("documents", [[]])[0]
-        distances = res.get("distances", [[]])[0]
-        metadatas = res.get("metadatas", [[]])[0]
-
-        items = [
-            {"text": d, "distance": dist, "meta": meta}
-            for d, dist, meta in zip(docs, distances, metadatas)
-        ]
+        results = self.vs.similarity_search_with_score(query_text, k=rerank_top_n)
+        items = []
+        for doc, score in results:
+            items.append({
+                "text": doc.page_content,
+                "distance": float(score),
+                "meta": doc.metadata or {}
+            })
 
         # Heuristic prioritization
         q_lower = query_text.lower()
         if "youtu" in q_lower:
-            items = sorted(items, key=lambda x: (0 if "youtu" in x["meta"].get("source", "").lower() else 1, x["distance"]))
+            items = sorted(
+                items,
+                key=lambda x: (0 if "youtu" in x["meta"].get("source", "").lower() else 1, x["distance"])
+            )
         elif "http" in q_lower or "www" in q_lower:
-            items = sorted(items, key=lambda x: (0 if "url" in x["meta"].get("source", "").lower() else 1, x["distance"]))
+            items = sorted(
+                items,
+                key=lambda x: (0 if "http" in x["meta"].get("source", "").lower() else 1, x["distance"])
+            )
         else:
             items = sorted(items, key=lambda x: x["distance"])
 
@@ -122,21 +123,20 @@ class ChromaRetriever:
     # Reset collection
     # ---------------------------
     def reset_collection(self):
-        """Clear all docs from collection safely."""
-        try:
-            self.client.delete_collection(self.collection_name)
-        except Exception:
-            pass
-        self.collection = self.client.get_or_create_collection(name=self.collection_name)
-        print(f"🗑️ Collection '{self.collection_name}' has been reset.")
+        """Clear all docs from FAISS safely."""
+        if os.path.exists(self.index_path):
+            shutil.rmtree(self.index_path)
+        self.vs = None
+        print(f"🗑️ FAISS index '{self.collection_name}' has been reset.")
 
     # ---------------------------
     # Persist
     # ---------------------------
     def persist(self):
-        """Persist the DB if persistence is enabled."""
-        if self.should_persist:
-            print("✅ Chroma DB is automatically persisted with DuckDB+Parquet.")
+        """Persist the FAISS index to disk."""
+        if self.vs:
+            self.vs.save_local(self.index_path)
+            print(f"✅ FAISS index saved to {self.index_path}")
 
     # ---------------------------
     # Ask Groq
@@ -144,11 +144,16 @@ class ChromaRetriever:
     def ask_groq(self, query_text, top_k=5):
         """
         Run RAG:
-        - Query Chroma
+        - Query FAISS
         - Feed context into Groq LLM
         """
         results = self.query(query_text, top_k=top_k)
-        context = "\n\n".join([f"Source: {r['meta'].get('source','?')}\n{r['text']}" for r in results])
+        if not results:
+            return "⚠️ No documents found in FAISS index.", []
+
+        context = "\n\n".join(
+            [f"Source: {r['meta'].get('source','?')}\n{r['text']}" for r in results]
+        )
 
         prompt = f"""You are a helpful real estate RAG assistant.
 Use the context below to answer the user’s question.
@@ -169,4 +174,4 @@ Context:
             temperature=0.3,
         )
 
-        return response.choices[0].message["content"].strip(), results
+        return response.choices[0].message.content.strip(), results
