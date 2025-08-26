@@ -1,24 +1,15 @@
-# Core
 streamlit>=1.20
-
-# LangChain
 langchain>=0.0.300
-langchain-community>=0.0.53   # For FAISS retriever and vectorstores
-langchain-huggingface>=0.2.2 # For HuggingFaceEmbeddings (replaces deprecated import)
-
-# Vector search
-faiss-cpu>=1.7.4             # use faiss-gpu if deploying on GPU
+langchain-community>=0.0.300   # ✅ add this explicitly
+faiss-cpu>=1.7.4
 sentence-transformers>=2.2.2
 transformers>=4.30.0
-
-# Web & scraping
 youtube-transcript-api>=0.6.0
 beautifulsoup4>=4.12.2
 requests>=2.31.0
 python-docx>=0.8.11
 pypdf>=3.13.0
-
-# Utilities
+groq>=0.9.0
 stqdm>=0.0.5
 numpy>=1.26.0
-python-dotenv>=1.0.0        # ✅ to load .env for API keys
+python-dotenv>=1.0.0
