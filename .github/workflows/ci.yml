@@ -42,7 +42,7 @@ jobs:
           python -m compileall .
           python -c "import app, embeddings, retriever, ingestion, utils"
 
-      # Optional: Run Streamlit in headless mode for test
+      # Optional: Test Streamlit launch
       - name: Test Streamlit app launch
         run: |
           streamlit run app.py --headless --server.headless true &
