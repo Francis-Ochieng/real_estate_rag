@@ -4,7 +4,7 @@ import os
 import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 
 # Load environment variables
 load_dotenv()
@@ -21,7 +21,9 @@ class GroqEmbeddings:
         self.model_name = model_name
         groq_api_key = os.getenv("GROQ_API_KEY")
         if not groq_api_key:
-            raise ValueError("❌ GROQ_API_KEY is not set in environment variables or .env file.")
+            raise ValueError(
+                "❌ GROQ_API_KEY is not set in environment variables or .env file."
+            )
         self.client = Groq(api_key=groq_api_key)
 
     def _embed(self, texts):
@@ -58,9 +60,9 @@ def get_embedding_function(provider: str = "huggingface"):
     """
     if provider == "groq":
         return GroqEmbeddings(model_name="nomic-embed-text")
-
     elif provider == "huggingface":
-        return HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
+        return HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
     else:
         raise ValueError(f"❌ Unknown embedding provider: {provider}")

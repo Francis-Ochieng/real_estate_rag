@@ -1,15 +1,17 @@
 # app.py
 
 import streamlit as st
-from stqdm import stqdm  # ✅ optional progress bars in loops
+from stqdm import stqdm
 import os, time, shutil
 from ingestion import load_pdf, load_docx, load_txt, load_csv, load_url, load_youtube_transcript
 from utils import simple_chunk_text
 from retriever import FAISSRetriever, FAISS_DIR
 from dotenv import load_dotenv
 from groq import Groq
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings  # ✅ consistent with retriever.py
+
+# Use the updated LangChain imports
+from langchain.vectorstores import FAISS
+from langchain.embeddings import HuggingFaceEmbeddings
 
 # ---------------- Setup ----------------
 load_dotenv()
@@ -54,7 +56,6 @@ ingest_btn = st.button("🚀 Ingest documents")
 
 
 def source_icon(src: str) -> str:
-    """Pick an icon for the source type."""
     src = src.lower()
     if src.endswith(".pdf"):
         return "📄"
@@ -157,7 +158,6 @@ with col1:
             retriever = FAISSRetriever(use_reranker=use_reranker)
             items = retriever.query(query, top_k=top_k, rerank_top_n=top_k * 2)
 
-            # Build context with icons
             context = "\n\n".join(
                 [
                     f"{source_icon(it['meta'].get('source',''))} "
@@ -166,7 +166,6 @@ with col1:
                 ]
             )
 
-            # Generation with Groq
             answer = None
             try:
                 if client:
@@ -199,7 +198,6 @@ with col1:
     if st.button("🧹 Clear chat"):
         st.session_state["history"] = []
 
-    # Display history
     for turn in reversed(st.session_state["history"]):
         st.markdown(f"**Q:** {turn['query']}")
         st.info(turn["answer"])
@@ -215,10 +213,8 @@ with col2:
     st.markdown("### 📑 Documents preview")
     try:
         if os.path.exists(FAISS_DIR):
-            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")  # ✅ match retriever
-            vs = FAISS.load_local(
-                FAISS_DIR, embeddings, allow_dangerous_deserialization=True
-            )
+            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            vs = FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
             shown = 0
             for doc in vs.docstore._dict.values():
                 st.write(doc.metadata.get("source", "unknown"))
