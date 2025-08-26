@@ -7,7 +7,16 @@ import docx
 from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from pypdf import PdfReader
-from utils import clean_text  # ✅ absolute import, no relative imports
+from dotenv import load_dotenv   # ✅ load .env
+
+from utils import clean_text      # ✅ absolute import
+from retriever import ChromaRetriever  # ✅ bring in retriever
+
+
+# -------------------
+# Load environment
+# -------------------
+load_dotenv()  # ensures GROQ_API_KEY from .env is available
 
 
 # -------------------
@@ -128,3 +137,47 @@ def load_any(source: str) -> str:
 
     else:
         return f"[Unknown source type: {source}]"
+
+
+# -------------------
+# Ingestion Pipeline
+# -------------------
+
+def ingest(sources: list, collection_name: str = "real_estate"):
+    """
+    Ingest a list of sources into Chroma (DuckDB+Parquet backend).
+    - Wipes existing collection before adding
+    - Supports PDFs, DOCX, TXT, CSV, URLs, YouTube
+    """
+    retriever = ChromaRetriever(collection_name=collection_name)
+
+    # ❌ Delete existing collection (to avoid duplicates)
+    try:
+        retriever.client.delete_collection(name=collection_name)
+    except Exception:
+        pass  # first run, no collection yet
+
+    retriever.collection = retriever.client.get_or_create_collection(name=collection_name)
+
+    for i, src in enumerate(sources):
+        print(f"📥 Loading: {src}")
+        text = load_any(src)
+        if text and not text.startswith("[ERROR"):
+            retriever.add_documents([text], source=src, ids=[f"doc_{i}"])
+            print(f"✅ Added: {src}")
+        else:
+            print(f"⚠️ Skipped {src} due to error.")
+
+    retriever.persist()
+    print("🎉 Ingestion complete!")
+
+
+if __name__ == "__main__":
+    # Example run (replace with your files/URLs)
+    sample_sources = [
+        "docs/example.pdf",
+        "docs/notes.txt",
+        "https://en.wikipedia.org/wiki/Real_estate",
+        "https://youtu.be/dQw4w9WgXcQ"
+    ]
+    ingest(sample_sources)
