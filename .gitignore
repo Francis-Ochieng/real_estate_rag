@@ -3,15 +3,15 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.sqlite3
 
-# Env
-.env
+# Virtual envs
+.venv/
+venv/
 
-# Chroma DB / vector stores
-chroma_db/
+# Environment & secrets
+.env
+.streamlit/secrets.toml
 
-# OS files
-.DS_Store
-Thumbs.db
-.env
-.env
+# FAISS index
+faiss_index/
