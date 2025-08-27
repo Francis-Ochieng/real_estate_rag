@@ -44,12 +44,7 @@ class FAISSRetriever:
         # Groq client
         # -------------------------
         api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "Missing GROQ_API_KEY in environment. Add it to your .env file."
-            )
-        self.groq_client = Groq(api_key=api_key)
-
+        self.groq_client = Groq(api_key=api_key) if api_key else None
         self.use_reranker = use_reranker
         if use_reranker:
             print("⚠️ Reranker not available with Groq yet. Using vector similarity only.")
@@ -73,7 +68,7 @@ class FAISSRetriever:
     # ---------------------------
     # Add documents
     # ---------------------------
-    def add_documents(self, docs, source="unknown", metadatas=None):
+    def add_documents(self, docs, metadatas=None):
         """Add documents + embeddings to FAISS."""
         if not docs:
             print("⚠️ No documents to add.")
@@ -85,23 +80,24 @@ class FAISSRetriever:
             new_store = FAISS.from_texts(texts=docs, embedding=self.embedder, metadatas=metadatas)
             self.vs.merge_from(new_store)
 
-        print(f"✅ Added {len(docs)} docs from {source} into FAISS index.")
+        print(f"✅ Added {len(docs)} docs into FAISS index.")
 
     # ---------------------------
     # Query
     # ---------------------------
     def query(self, query_text, top_k=5, rerank_top_n=10):
-        """Query FAISS vector store with metadata-aware heuristic."""
+        """Query FAISS vector store with optional heuristic."""
         if not self.vs:
             print("⚠️ No FAISS index available.")
             return []
 
         results = self.vs.similarity_search_with_score(query_text, k=rerank_top_n)
-        items = []
-        for doc, score in results:
-            items.append({"text": doc.page_content, "distance": float(score), "meta": doc.metadata or {}})
+        items = [
+            {"text": doc.page_content, "distance": float(score), "meta": doc.metadata or {}}
+            for doc, score in results
+        ]
 
-        # Heuristic prioritization
+        # Heuristic prioritization based on query type
         q_lower = query_text.lower()
         if "youtu" in q_lower:
             items = sorted(
@@ -146,6 +142,9 @@ class FAISSRetriever:
         - Query FAISS
         - Feed context into Groq LLM
         """
+        if not self.groq_client:
+            return "⚠️ No GROQ_API_KEY set — generation disabled.", []
+
         results = self.query(query_text, top_k=top_k)
         if not results:
             return "⚠️ No documents found in FAISS index.", []

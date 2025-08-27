@@ -65,7 +65,8 @@ def source_icon(src: str) -> str:
 # ---------------- Ingestion ----------------
 if ingest_btn:
     with st.spinner("Ingesting..."):
-        retriever = FAISSRetriever(use_reranker=use_reranker)
+        # Force FAISSRetriever to use CPU-safe embeddings
+        retriever = FAISSRetriever(embedding_provider="huggingface", use_reranker=use_reranker)
         retriever.reset_collection()
 
         all_chunks, metadatas = [], []
@@ -151,7 +152,7 @@ with col1:
         if not query:
             st.warning("Please type a question.")
         else:
-            retriever = FAISSRetriever(use_reranker=use_reranker)
+            retriever = FAISSRetriever(embedding_provider="huggingface", use_reranker=use_reranker)
             items = retriever.query(query, top_k=top_k, rerank_top_n=top_k * 2)
 
             context = "\n\n".join(
