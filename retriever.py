@@ -4,7 +4,7 @@ import os
 import shutil
 from dotenv import load_dotenv
 from groq import Groq
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain.docstore.document import Document
 from embeddings import get_embedding_function  # your custom embedding factory
 
@@ -31,6 +31,7 @@ class FAISSRetriever:
 
         # Get embedding function
         if embedding_provider == "huggingface":
+            # Force CPU for Streamlit Cloud
             self.embedder = get_embedding_function("huggingface")
         elif embedding_provider == "groq":
             self.embedder = get_embedding_function("groq")

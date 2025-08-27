@@ -8,10 +8,8 @@ from utils import simple_chunk_text
 from retriever import FAISSRetriever, FAISS_DIR
 from dotenv import load_dotenv
 from groq import Groq
-
-# Use the updated LangChain imports
 from langchain.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+from embeddings import get_embedding_function  # Updated embeddings.py
 
 # ---------------- Setup ----------------
 load_dotenv()
@@ -22,7 +20,6 @@ st.set_page_config(page_title="Real Estate RAG Assistant", layout="wide")
 
 if "history" not in st.session_state:
     st.session_state["history"] = []
-
 
 # ---------------- Sidebar Settings ----------------
 st.sidebar.title("⚙️ Settings")
@@ -39,7 +36,6 @@ use_reranker = st.sidebar.checkbox(
 
 groq_models = ["llama-3.1-8b-instant", "llama-3.1-70b-versatile"]
 selected_model = st.sidebar.selectbox("Choose Groq model:", groq_models, index=0)
-
 
 # ---------------- Main UI ----------------
 st.title("🏠 Real Estate RAG Assistant")
@@ -213,7 +209,7 @@ with col2:
     st.markdown("### 📑 Documents preview")
     try:
         if os.path.exists(FAISS_DIR):
-            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            embeddings = get_embedding_function("huggingface")
             vs = FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
             shown = 0
             for doc in vs.docstore._dict.values():

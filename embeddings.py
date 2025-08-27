@@ -55,14 +55,15 @@ class GroqEmbeddings:
 def get_embedding_function(provider: str = "huggingface"):
     """
     Factory to get an embedding function compatible with FAISS & LangChain.
-    - "huggingface": Uses all-MiniLM-L6-v2 (local SentenceTransformer)
+    - "huggingface": Uses all-MiniLM-L6-v2 (local SentenceTransformer, CPU forced)
     - "groq": Uses Groq embeddings API (nomic-embed-text)
     """
     if provider == "groq":
         return GroqEmbeddings(model_name="nomic-embed-text")
     elif provider == "huggingface":
         return HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"}  # Force CPU to avoid Streamlit GPU errors
         )
     else:
         raise ValueError(f"❌ Unknown embedding provider: {provider}")
