@@ -8,7 +8,7 @@ from utils import simple_chunk_text
 from retriever import FAISSRetriever, FAISS_DIR
 from dotenv import load_dotenv
 from groq import Groq
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from embeddings import get_embedding_function  # Updated embeddings.py
 
 # ---------------- Setup ----------------
