@@ -1,6 +1,6 @@
 streamlit>=1.20
 langchain>=0.0.300
-langchain-community>=0.0.300   # ✅ add this explicitly
+langchain-community>=0.0.300   # ✅ explicitly required for retrievers/embeddings
 faiss-cpu>=1.7.4
 sentence-transformers>=2.2.2
 transformers>=4.30.0
@@ -13,3 +13,6 @@ groq>=0.9.0
 stqdm>=0.0.5
 numpy>=1.26.0
 python-dotenv>=1.0.0
+tqdm>=4.67.1          # ✅ explicitly needed by stqdm
+pandas>=2.0.0         # ✅ required by Streamlit + ingestion
+pyarrow>=10.0.1       # ✅ required by Streamlit for DataFrames

@@ -5,7 +5,6 @@ import shutil
 from dotenv import load_dotenv
 from groq import Groq
 from langchain_community.vectorstores import FAISS
-from langchain.docstore.document import Document
 from embeddings import get_embedding_function  # Updated embeddings.py
 
 # Load environment variables
@@ -33,12 +32,13 @@ class FAISSRetriever:
         # Embedding function
         # -------------------------
         if embedding_provider == "huggingface":
-            # CPU-only embeddings to prevent Torch meta tensor errors
             self.embedder = get_embedding_function("huggingface")
+            print("✅ Using HuggingFace embeddings (all-MiniLM-L6-v2).")
         elif embedding_provider == "groq":
             self.embedder = get_embedding_function("groq")
+            print("✅ Using Groq embeddings (nomic-embed-text).")
         else:
-            raise ValueError(f"Unknown embedding provider: {embedding_provider}")
+            raise ValueError(f"❌ Unknown embedding provider: {embedding_provider}")
 
         # -------------------------
         # Groq client
@@ -61,8 +61,8 @@ class FAISSRetriever:
                     allow_dangerous_deserialization=True,
                 )
                 print(f"✅ Loaded existing FAISS index from {self.index_path}")
-            except Exception:
-                print("⚠️ Failed to load FAISS index, starting fresh.")
+            except Exception as e:
+                print(f"⚠️ Failed to load FAISS index, starting fresh. Error: {e}")
                 self.vs = None
 
     # ---------------------------
@@ -172,4 +172,10 @@ Context:
             temperature=0.3,
         )
 
-        return response.choices[0].message.content.strip(), results
+        # ✅ Normalize Groq SDK response
+        try:
+            content = response.choices[0].message.content.strip()
+        except Exception:
+            content = response.choices[0].message["content"].strip()
+
+        return content, results

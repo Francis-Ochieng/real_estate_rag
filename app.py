@@ -23,6 +23,8 @@ if "history" not in st.session_state:
 
 # ---------------- Sidebar Settings ----------------
 st.sidebar.title("⚙️ Settings")
+
+# Chunking options
 chunk_size = st.sidebar.number_input(
     "Chunk size (chars)", min_value=200, max_value=10000, value=1200, step=100
 )
@@ -34,8 +36,17 @@ use_reranker = st.sidebar.checkbox(
     "Use reranker (Groq does not support yet)", value=False
 )
 
+# Embedding provider toggle
+embedding_provider = st.sidebar.selectbox(
+    "Embedding Provider",
+    ["huggingface", "groq"],
+    index=0,
+    help="Choose between local HuggingFace embeddings or Groq API embeddings."
+)
+
+# Groq LLM model selection
 groq_models = ["llama-3.1-8b-instant", "llama-3.1-70b-versatile"]
-selected_model = st.sidebar.selectbox("Choose Groq model:", groq_models, index=0)
+selected_model = st.sidebar.selectbox("Groq Model:", groq_models, index=0)
 
 # ---------------- Main UI ----------------
 st.title("🏠 Real Estate RAG Assistant")
@@ -65,8 +76,9 @@ def source_icon(src: str) -> str:
 # ---------------- Ingestion ----------------
 if ingest_btn:
     with st.spinner("Ingesting..."):
-        # Force FAISSRetriever to use CPU-safe embeddings
-        retriever = FAISSRetriever(embedding_provider="huggingface", use_reranker=use_reranker)
+        retriever = FAISSRetriever(
+            embedding_provider=embedding_provider, use_reranker=use_reranker
+        )
         retriever.reset_collection()
 
         all_chunks, metadatas = [], []
@@ -132,6 +144,7 @@ if ingest_btn:
             st.session_state["last_ingested"] = {
                 "count": len(all_chunks),
                 "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "embedding_provider": embedding_provider,
             }
         else:
             st.warning("⚠️ Nothing was ingested. Please check your files/links.")
@@ -152,7 +165,9 @@ with col1:
         if not query:
             st.warning("Please type a question.")
         else:
-            retriever = FAISSRetriever(embedding_provider="huggingface", use_reranker=use_reranker)
+            retriever = FAISSRetriever(
+                embedding_provider=embedding_provider, use_reranker=use_reranker
+            )
             items = retriever.query(query, top_k=top_k, rerank_top_n=top_k * 2)
 
             context = "\n\n".join(
@@ -182,7 +197,10 @@ with col1:
                         max_tokens=300,
                         temperature=0.3,
                     )
-                    answer = resp.choices[0].message.content.strip()
+                    try:
+                        answer = resp.choices[0].message.content.strip()
+                    except Exception:
+                        answer = resp.choices[0].message["content"].strip()
                 else:
                     answer = "⚠️ No GROQ_API_KEY set — generation disabled."
             except Exception as e:
@@ -210,7 +228,7 @@ with col2:
     st.markdown("### 📑 Documents preview")
     try:
         if os.path.exists(FAISS_DIR):
-            embeddings = get_embedding_function("huggingface")  # CPU-safe embeddings
+            embeddings = get_embedding_function(embedding_provider)
             vs = FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
             shown = 0
             for doc in vs.docstore._dict.values():

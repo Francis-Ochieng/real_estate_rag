@@ -5,8 +5,6 @@ import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
 from langchain_community.embeddings import HuggingFaceEmbeddings
-import torch
-from sentence_transformers import SentenceTransformer
 
 # Load environment variables
 load_dotenv()
@@ -57,18 +55,14 @@ class GroqEmbeddings:
 def get_embedding_function(provider: str = "huggingface"):
     """
     Factory to get an embedding function compatible with FAISS & LangChain.
-    - "huggingface": Uses all-MiniLM-L6-v2 (local SentenceTransformer, CPU safe)
+    - "huggingface": Uses all-MiniLM-L6-v2 (local, CPU-safe)
     - "groq": Uses Groq embeddings API (nomic-embed-text)
     """
     if provider == "groq":
         return GroqEmbeddings(model_name="nomic-embed-text")
     elif provider == "huggingface":
-        # Force CPU initialization to avoid meta tensor issues in Streamlit
+        # ✅ Fixed: only pass model_name, not preloaded SentenceTransformer
         model_name = "sentence-transformers/all-MiniLM-L6-v2"
-        sentence_transformer_model = SentenceTransformer(model_name, device="cpu")
-        return HuggingFaceEmbeddings(
-            model_name=model_name,
-            model=sentence_transformer_model  # pass pre-loaded CPU-safe model
-        )
+        return HuggingFaceEmbeddings(model_name=model_name)
     else:
         raise ValueError(f"❌ Unknown embedding provider: {provider}")
