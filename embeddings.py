@@ -5,6 +5,7 @@ import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
 from langchain.embeddings import HuggingFaceEmbeddings
+import torch
 
 # Load environment variables
 load_dotenv()
@@ -61,9 +62,14 @@ def get_embedding_function(provider: str = "huggingface"):
     if provider == "groq":
         return GroqEmbeddings(model_name="nomic-embed-text")
     elif provider == "huggingface":
+        # Force CPU only, safe for Streamlit & avoids Torch meta tensor errors
+        device = "cpu"
+        if torch.cuda.is_available():
+            # Optional: override to CPU if Streamlit/GPU environment gives errors
+            device = "cpu"
         return HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"}  # Force CPU to avoid Streamlit GPU errors
+            model_kwargs={"device": device}
         )
     else:
         raise ValueError(f"❌ Unknown embedding provider: {provider}")

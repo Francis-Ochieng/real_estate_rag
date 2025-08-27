@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from groq import Groq
 from langchain_community.vectorstores import FAISS
 from langchain.docstore.document import Document
-from embeddings import get_embedding_function  # your custom embedding factory
+from embeddings import get_embedding_function  # Updated embeddings.py
 
 # Load environment variables
 load_dotenv()
@@ -29,16 +29,20 @@ class FAISSRetriever:
         self.collection_name = collection_name
         self.index_path = FAISS_DIR
 
-        # Get embedding function
+        # -------------------------
+        # Embedding function
+        # -------------------------
         if embedding_provider == "huggingface":
-            # Force CPU for Streamlit Cloud
+            # CPU-only embeddings to prevent Torch meta tensor errors
             self.embedder = get_embedding_function("huggingface")
         elif embedding_provider == "groq":
             self.embedder = get_embedding_function("groq")
         else:
             raise ValueError(f"Unknown embedding provider: {embedding_provider}")
 
+        # -------------------------
         # Groq client
+        # -------------------------
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError(
@@ -50,7 +54,9 @@ class FAISSRetriever:
         if use_reranker:
             print("⚠️ Reranker not available with Groq yet. Using vector similarity only.")
 
+        # -------------------------
         # Load FAISS index if exists
+        # -------------------------
         self.vs = None
         if os.path.exists(self.index_path):
             try:

@@ -209,7 +209,7 @@ with col2:
     st.markdown("### 📑 Documents preview")
     try:
         if os.path.exists(FAISS_DIR):
-            embeddings = get_embedding_function("huggingface")
+            embeddings = get_embedding_function("huggingface")  # CPU-safe embeddings
             vs = FAISS.load_local(FAISS_DIR, embeddings, allow_dangerous_deserialization=True)
             shown = 0
             for doc in vs.docstore._dict.values():
@@ -232,7 +232,7 @@ with col2:
                 shutil.rmtree(FAISS_DIR)
                 st.success("✅ All documents cleared from FAISS index.")
                 st.session_state["history"] = []
-                st.rerun()
+                st.experimental_rerun()
             else:
                 st.info("No index to clear.")
         except Exception as e:
