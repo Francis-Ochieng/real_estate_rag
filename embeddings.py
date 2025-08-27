@@ -61,7 +61,7 @@ def get_embedding_function(provider: str = "huggingface"):
     if provider == "groq":
         return GroqEmbeddings(model_name="nomic-embed-text")
     elif provider == "huggingface":
-        # ✅ Fixed: only pass model_name, not preloaded SentenceTransformer
+        # ✅ Fixed: only pass model_name, not a raw SentenceTransformer instance
         model_name = "sentence-transformers/all-MiniLM-L6-v2"
         return HuggingFaceEmbeddings(model_name=model_name)
     else:
