@@ -1,1 +1,2 @@
-[server]\nfileWatcherType = "none"
+[server]
+fileWatcherType = "none"
